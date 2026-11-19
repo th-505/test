@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>اختبار وتحميل HLS (.m3u8 / .ts)</title>
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+  <title>تجميع وتنزيل HLS كملف واحد</title>
   <style>
     :root {
-      --bg: #0f172a;
+      --bg: #0b1120;
       --card: #1e293b;
       --border: #334155;
       --text: #f8fafc;
@@ -15,7 +14,7 @@
       --accent: #6b46c1;
       --accent-hover: #553c9a;
       --ok: #10b981;
-      --err: #ef4444;
+      --danger: #dc2626;
     }
     * { box-sizing: border-box; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
     body {
@@ -25,604 +24,273 @@
       color: var(--text);
       line-height: 1.6;
     }
-    .container { max-width: 980px; margin: 0 auto; }
-    .card {
+    .wrap {
+      max-width: 820px;
+      margin: 0 auto;
       background: var(--card);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px;
-      margin-bottom: 16px;
+      border-radius: 14px;
+      padding: 20px;
     }
-    h1 { margin: 0 0 8px; font-size: 1.35rem; }
-    .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 12px; }
-    label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.92rem; }
-    input[type="text"], input[type="number"], textarea {
+    h1 { margin: 0 0 6px; font-size: 1.3rem; }
+    .sub { color: var(--muted); font-size: 0.88rem; margin-bottom: 14px; }
+    label { display: block; margin-top: 12px; margin-bottom: 6px; font-weight: 600; font-size: 0.9rem; }
+    input, select, textarea {
       width: 100%;
-      background: #0b1120;
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 8px;
       padding: 10px 12px;
-      font-size: 0.88rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #0f172a;
+      color: var(--text);
+      font-size: 0.86rem;
       direction: ltr;
       text-align: left;
     }
-    textarea { min-height: 85px; resize: vertical; }
-    .range-grid {
+    textarea { min-height: 90px; resize: vertical; }
+    .grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: 12px;
-      margin-top: 12px;
     }
-    .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+    .btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
     button {
       background: var(--accent);
       color: #fff;
       border: none;
       border-radius: 8px;
-      padding: 10px 16px;
+      padding: 11px 18px;
       font-size: 0.92rem;
-      font-weight: 600;
+      font-weight: 700;
       cursor: pointer;
-      transition: background 0.15s;
     }
     button:hover { background: var(--accent-hover); }
-    button.secondary { background: #334155; }
-    button.secondary:hover { background: #475569; }
-    button.danger { background: #991b1b; }
-    button.danger:hover { background: #b91c1c; }
+    button.danger { background: var(--danger); }
     button:disabled { opacity: 0.45; cursor: not-allowed; }
-    video {
-      width: 100%;
-      max-height: 480px;
-      background: #000;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-    }
-    .summary-bar {
+    .prog {
       margin-top: 14px;
-      background: #0b1120;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 12px 14px;
-      display: none;
-      flex-wrap: wrap;
-      gap: 12px;
-      justify-content: space-between;
-      align-items: center;
-      font-size: 0.88rem;
-    }
-    .summary-stats { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-    .pill { padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; }
-    .p-ok { background: rgba(16, 185, 129, 0.18); color: var(--ok); }
-    .p-err { background: rgba(239, 68, 68, 0.18); color: var(--err); }
-    .p-info { background: rgba(148, 163, 184, 0.18); color: #e2e8f0; }
-    .master-box {
-      margin-top: 10px;
-      background: #0b1120;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-size: 0.84rem;
-      direction: ltr;
-      text-align: left;
-      word-break: break-all;
-      display: none;
-    }
-    .failed-box {
-      margin-top: 12px;
-      background: rgba(239, 68, 68, 0.06);
-      border: 1px solid rgba(239, 68, 68, 0.35);
-      border-radius: 10px;
-      padding: 12px;
-      display: none;
-    }
-    .failed-title {
-      font-weight: 700;
-      color: var(--err);
-      margin-bottom: 8px;
-      font-size: 0.9rem;
-    }
-    .failed-list {
-      max-height: 220px;
-      overflow-y: auto;
-      display: grid;
-      gap: 6px;
-      direction: ltr;
-      text-align: left;
-      font-size: 0.82rem;
-    }
-    .failed-item {
-      background: #0b1120;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 8px 10px;
-      word-break: break-all;
-    }
-    .progress-wrap {
-      margin-top: 12px;
-      background: #0b1120;
+      height: 12px;
+      background: #0f172a;
       border: 1px solid var(--border);
       border-radius: 8px;
       overflow: hidden;
-      height: 12px;
     }
-    .progress-bar {
+    .bar {
       height: 100%;
       width: 0%;
       background: var(--ok);
       transition: width 0.15s;
     }
-    .log {
+    .status {
       margin-top: 10px;
-      font-size: 0.85rem;
-      color: var(--muted);
+      padding: 12px;
+      border-radius: 8px;
+      background: #0f172a;
+      border: 1px solid var(--border);
+      font-size: 0.86rem;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      word-break: break-all;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="card">
-      <h1>اختبار الاستجابة وتحميل HLS (.m3u8 / .ts)</h1>
-      <div class="meta" id="expiryInfo">جاري حساب صلاحية expires...</div>
+  <div class="wrap">
+    <h1>تجميع وتنزيل الفيديو كملف واحد (بدون سيرفر)</h1>
+    <div class="sub" id="expBanner">جاري فحص صلاحية expires...</div>
 
-      <label for="masterUrl">رابط المجمع (Master / Media .m3u8):</label>
-      <input
-        type="text"
-        id="masterUrl"
-        value="https://s9.ukrcdn.xyz/hls/a4cb38d5-1b6a-42fa-a62d-635d4d838140/720p/720p.m3u8?token=504320e7fb67e95795befd6e47fa2e02ba908b42792cf6e75510ecee87c66b07&expires=1795096923"
-      />
+    <label for="m3u8Url">رابط المجمع (.m3u8):</label>
+    <input
+      type="text"
+      id="m3u8Url"
+      value="https://s9.ukrcdn.xyz/hls/a4cb38d5-1b6a-42fa-a62d-635d4d838140/720p/720p.m3u8?token=504320e7fb67e95795befd6e47fa2e02ba908b42792cf6e75510ecee87c66b07&expires=1795096923"
+    />
 
-      <div class="range-grid">
-        <div>
-          <label for="startSeg">مقطع البداية (Start Index):</label>
-          <input type="number" id="startSeg" min="0" value="0" />
-        </div>
-        <div>
-          <label for="endSeg">مقطع النهاية (فارغ = حتى آخر مقطع):</label>
-          <input type="number" id="endSeg" min="0" value="" placeholder="إلى النهاية" />
-        </div>
-        <div>
-          <label for="concurrencyInput">التوازي (1 إلى 6):</label>
-          <input type="number" id="concurrencyInput" min="1" max="6" value="4" />
-        </div>
+    <div class="grid">
+      <div>
+        <label for="startIdx">من مقطع:</label>
+        <input type="number" id="startIdx" min="0" value="0" />
       </div>
-
-      <div style="margin-top: 12px;">
-        <label for="manifestInput">محتوى قائمة المقاطع (.m3u8) — يُجلب تلقائياً أو يُلصق يدوياً:</label>
-        <textarea id="manifestInput" placeholder="#EXTM3U ..."></textarea>
+      <div>
+        <label for="endIdx">إلى مقطع (فارغ = الكل):</label>
+        <input type="number" id="endIdx" min="0" value="" placeholder="حتى النهاية" />
       </div>
-
-      <div class="row">
-        <button id="btnTestAll">فحص الكل من البداية للنهاية</button>
-        <button id="btnPlayStream" class="secondary">تشغيل بث HLS</button>
-        <button id="btnMergePlay">تجميع كامل النطاق (.ts)</button>
-        <button id="btnDownloadTs" class="secondary" disabled>تحميل الفيديو المدمج (.ts)</button>
-        <button id="btnCancel" class="danger" disabled>إلغاء</button>
+      <div>
+        <label for="fileName">اسم الملف:</label>
+        <input type="text" id="fileName" value="video_720p_full" />
       </div>
-
-      <div class="progress-wrap">
-        <div class="progress-bar" id="progressBar"></div>
-      </div>
-      <div class="log" id="logText">جاهز للاختبار.</div>
-
-      <div class="master-box" id="masterBox"></div>
-
-      <div class="summary-bar" id="summaryBar">
-        <div class="summary-stats" id="summaryStats"></div>
-      </div>
-
-      <div class="failed-box" id="failedBox">
-        <div class="failed-title" id="failedTitle">المقاطع الفاشلة:</div>
-        <div class="failed-list" id="failedList"></div>
+      <div>
+        <label for="extSelect">الامتداد:</label>
+        <select id="extSelect">
+          <option value="ts" selected>.ts (مباشر وسريع)</option>
+          <option value="mp4">.mp4</option>
+        </select>
       </div>
     </div>
 
-    <div class="card">
-      <video id="videoPlayer" controls playsinline></video>
+    <label for="rawList">محتوى القائمة (.m3u8) — يُجلب تلقائياً أو يُلصق هنا:</label>
+    <textarea id="rawList" placeholder="#EXTM3U ..."></textarea>
+
+    <div class="btns">
+      <button id="btnStart">تجميع وتنزيل كملف واحد</button>
+      <button id="btnStop" class="danger" disabled>إيقاف</button>
     </div>
+
+    <div class="prog"><div class="bar" id="bar"></div></div>
+    <div class="status" id="status">جاهز. اضغط "تجميع وتنزيل كملف واحد".</div>
   </div>
 
   <script>
-    const masterUrlEl = document.getElementById('masterUrl');
-    const startSegEl = document.getElementById('startSeg');
-    const endSegEl = document.getElementById('endSeg');
-    const concurrencyEl = document.getElementById('concurrencyInput');
-    const manifestInputEl = document.getElementById('manifestInput');
-    const expiryInfoEl = document.getElementById('expiryInfo');
-    const masterBoxEl = document.getElementById('masterBox');
-    const summaryBarEl = document.getElementById('summaryBar');
-    const summaryStatsEl = document.getElementById('summaryStats');
-    const failedBoxEl = document.getElementById('failedBox');
-    const failedTitleEl = document.getElementById('failedTitle');
-    const failedListEl = document.getElementById('failedList');
-    const progressBarEl = document.getElementById('progressBar');
-    const logTextEl = document.getElementById('logText');
-    const videoEl = document.getElementById('videoPlayer');
-    const btnDownloadTs = document.getElementById('btnDownloadTs');
-    const btnCancel = document.getElementById('btnCancel');
+    const m3u8UrlEl = document.getElementById('m3u8Url');
+    const startIdxEl = document.getElementById('startIdx');
+    const endIdxEl = document.getElementById('endIdx');
+    const fileNameEl = document.getElementById('fileName');
+    const extSelectEl = document.getElementById('extSelect');
+    const rawListEl = document.getElementById('rawList');
+    const expBannerEl = document.getElementById('expBanner');
+    const btnStart = document.getElementById('btnStart');
+    const btnStop = document.getElementById('btnStop');
+    const barEl = document.getElementById('bar');
+    const statusEl = document.getElementById('status');
 
-    let hlsInstance = null;
-    let mergedBlobUrl = null;
-    let mergedFileName = 'merged_720p.ts';
-    let activeAbortController = null;
+    let controller = null;
 
-    function cleanupMergedUrl() {
-      if (mergedBlobUrl) {
-        URL.revokeObjectURL(mergedBlobUrl);
-        mergedBlobUrl = null;
-      }
-      btnDownloadTs.disabled = true;
-    }
-
-    function updateExpiryBanner() {
+    function updateExpiry() {
       try {
-        const u = new URL(masterUrlEl.value.trim());
+        const u = new URL(m3u8UrlEl.value.trim());
         const exp = Number(u.searchParams.get('expires'));
         if (!exp) {
-          expiryInfoEl.textContent = 'لم يتم العثور على معامل expires في رابط المجمع.';
+          expBannerEl.textContent = 'لا يوجد expires في الرابط.';
           return;
         }
-        const expDate = new Date(exp * 1000);
-        const nowSec = Math.floor(Date.now() / 1000);
-        const diffSec = exp - nowSec;
-        const riyadhStr = expDate.toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' });
-
-        if (diffSec > 0) {
-          const mins = Math.floor(diffSec / 60);
-          expiryInfoEl.innerHTML = `انتهاء الصلاحية (الرياض): <b>${riyadhStr}</b> — متبقي تقريباً <b>${mins}</b> دقيقة.`;
-        } else {
-          expiryInfoEl.innerHTML = `<span style="color:#ef4444">منتهي الصلاحية منذ:</span> <b>${riyadhStr}</b>`;
-        }
+        const now = Math.floor(Date.now() / 1000);
+        const rem = exp - now;
+        const riyadh = new Date(exp * 1000).toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' });
+        expBannerEl.innerHTML = rem > 0
+          ? `صلاحية الرابط تنتهي (الرياض): <b>${riyadh}</b> — المتبقي ~<b>${Math.floor(rem / 60)}</b> دقيقة.`
+          : `<span style="color:#f87171">انتهت صلاحية الرابط منذ:</span> <b>${riyadh}</b>`;
       } catch {
-        expiryInfoEl.textContent = 'رابط المجمع غير صالح.';
+        expBannerEl.textContent = 'الرابط غير صالح.';
       }
     }
 
-    function setLog(msg) {
-      logTextEl.textContent = msg;
+    function setStatus(msg) {
+      statusEl.textContent = msg;
     }
 
     function setProgress(pct) {
-      progressBarEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+      barEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
     }
 
-    function setBusyState(busy) {
-      btnCancel.disabled = !busy;
-      document.getElementById('btnTestAll').disabled = busy;
-      document.getElementById('btnMergePlay').disabled = busy;
-      document.getElementById('btnPlayStream').disabled = busy;
+    function parseUrls(m3u8Text, baseUrl) {
+      return m3u8Text
+        .split(/\r?\n/)
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('#'))
+        .map((l) => new URL(l, baseUrl).toString());
     }
 
-    btnCancel.addEventListener('click', () => {
-      if (activeAbortController) {
-        activeAbortController.abort();
-        activeAbortController = null;
-      }
+    btnStop.addEventListener('click', () => {
+      if (controller) controller.abort();
     });
 
-    function parseSegments(m3u8Text, baseUrl) {
-      const lines = m3u8Text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-      const segs = [];
-      for (const line of lines) {
-        if (!line.startsWith('#')) {
-          segs.push(new URL(line, baseUrl).toString());
-        }
-      }
-      return segs;
-    }
-
-    function sliceSegmentsByRange(allSegments) {
-      const rawStart = Number.parseInt(startSegEl.value, 10);
-      const start = Number.isNaN(rawStart) || rawStart < 0 ? 0 : rawStart;
-
-      const rawEndStr = endSegEl.value.trim();
-      let end = allSegments.length - 1;
-      if (rawEndStr !== '') {
-        const parsedEnd = Number.parseInt(rawEndStr, 10);
-        if (!Number.isNaN(parsedEnd)) {
-          end = Math.min(parsedEnd, allSegments.length - 1);
-        }
-      }
-
-      if (start > end || allSegments.length === 0) {
-        return { selected: [], start, end };
-      }
-
-      return {
-        selected: allSegments.slice(start, end + 1),
-        start,
-        end,
-      };
-    }
-
-    async function fetchPlaylistText(url, signal) {
-      const res = await fetch(url, { cache: 'no-store', signal });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const text = await res.text();
-      if (!text.includes('#EXTM3U')) throw new Error('المحتوى ليس قائمة M3U8 صالحة');
-      return text;
-    }
-
-    async function probeUrl(url, signal) {
-      const t0 = performance.now();
-      try {
-        const res = await fetch(url, { method: 'GET', cache: 'no-store', signal });
-        const elapsed = Math.round(performance.now() - t0);
-        return {
-          ok: res.ok,
-          status: res.status,
-          elapsed,
-          error: res.ok ? '' : `HTTP ${res.status}`,
-        };
-      } catch (err) {
-        if (err.name === 'AbortError') throw err;
-        const elapsed = Math.round(performance.now() - t0);
-        return {
-          ok: false,
-          status: 0,
-          elapsed,
-          error: err.message || 'Network/CORS error',
-        };
-      }
-    }
-
-    function renderSummary(total, okCount, failCount, avgMs) {
-      summaryBarEl.style.display = 'flex';
-      summaryStatsEl.innerHTML = `
-        <span class="pill p-info">المفحوص: ${total}</span>
-        <span class="pill p-ok">ناجح: ${okCount}</span>
-        <span class="pill p-err">فشل: ${failCount}</span>
-        <span class="pill p-info">متوسط الاستجابة: ${avgMs} ms</span>
-      `;
-    }
-
-    function renderFailedList(failedItems) {
-      failedListEl.innerHTML = '';
-      if (!failedItems.length) {
-        failedBoxEl.style.display = 'none';
+    btnStart.addEventListener('click', async () => {
+      updateExpiry();
+      const baseUrl = m3u8UrlEl.value.trim();
+      if (!baseUrl.startsWith('http')) {
+        setStatus('ضع رابط .m3u8 صحيح أولاً.');
         return;
       }
-      failedBoxEl.style.display = 'block';
-      failedTitleEl.textContent = `قائمة المقاطع الفاشلة (${failedItems.length}):`;
-      for (const item of failedItems) {
-        const div = document.createElement('div');
-        div.className = 'failed-item';
-        div.innerHTML = `
-          <div><b style="color:#ef4444;">مقطع #${item.index}</b> — <span>${item.reason}</span> (${item.elapsed}ms)</div>
-          <div style="color:#94a3b8;">${item.url}</div>
-        `;
-        failedListEl.appendChild(div);
-      }
-    }
 
-    document.getElementById('btnTestAll').addEventListener('click', async () => {
-      updateExpiryBanner();
-      failedBoxEl.style.display = 'none';
-      failedListEl.innerHTML = '';
-      summaryBarEl.style.display = 'none';
+      controller = new AbortController();
+      btnStart.disabled = true;
+      btnStop.disabled = false;
       setProgress(0);
 
-      const masterUrl = masterUrlEl.value.trim();
-      if (!masterUrl) return;
-
-      activeAbortController = new AbortController();
-      const { signal } = activeAbortController;
-      setBusyState(true);
-
       try {
-        masterBoxEl.style.display = 'block';
-        setLog('جاري فحص رابط المجمع...');
-        const masterProbe = await probeUrl(masterUrl, signal);
-        masterBoxEl.innerHTML = `
-          <div><b>رابط المجمع (.m3u8)</b> — <span class="pill ${masterProbe.ok ? 'p-ok' : 'p-err'}">${masterProbe.ok ? `OK ${masterProbe.status}` : `FAIL (${masterProbe.error})`} (${masterProbe.elapsed}ms)</span></div>
-          <div style="color:#94a3b8;margin-top:4px;">${masterUrl}</div>
-        `;
-
-        let m3u8Text = manifestInputEl.value.trim();
-        if (!m3u8Text && masterProbe.ok) {
-          setLog('جاري جلب قائمة المقاطع...');
-          m3u8Text = await fetchPlaylistText(masterUrl, signal);
-          manifestInputEl.value = m3u8Text;
+        let text = rawListEl.value.trim();
+        if (!text) {
+          setStatus('جاري جلب قائمة المقاطع...');
+          const res = await fetch(baseUrl, { cache: 'no-store', signal: controller.signal });
+          if (!res.ok) throw new Error(`فشل جلب القائمة: HTTP ${res.status}`);
+          text = await res.text();
+          rawListEl.value = text;
         }
 
-        if (!m3u8Text) {
-          setLog('لا توجد قائمة مقاطع متاحة للفحص.');
-          return;
-        }
+        const all = parseUrls(text, baseUrl);
+        if (!all.length) throw new Error('لم يتم العثور على مقاطع في القائمة.');
 
-        const allSegs = parseSegments(m3u8Text, masterUrl);
-        const { selected, start, end } = sliceSegmentsByRange(allSegs);
-        if (!selected.length) {
-          setLog('نطاق المقاطع المحدد غير صالح.');
-          return;
-        }
+        const s = Math.max(0, Number.parseInt(startIdxEl.value, 10) || 0);
+        const eRaw = endIdxEl.value.trim();
+        const e = eRaw === '' ? all.length - 1 : Math.min(all.length - 1, Number.parseInt(eRaw, 10));
+        if (s > e) throw new Error('نطاق المقاطع غير صحيح.');
 
-        const concurrency = Math.max(1, Math.min(6, Number.parseInt(concurrencyEl.value, 10) || 4));
-        let nextIdx = 0;
-        let completed = 0;
-        let okCount = 0;
-        let totalMs = 0;
-        const failedItems = [];
+        const target = all.slice(s, e + 1);
+        const parts = [];
 
-        setLog(`جاري فحص ${selected.length} مقطع من #${start} إلى #${end}...`);
+        setStatus(`بدء سحب ${target.length} مقطع بالترتيب من #${s} إلى #${e}...`);
 
-        async function worker() {
-          while (nextIdx < selected.length) {
-            const relIdx = nextIdx++;
-            const absIdx = start + relIdx;
-            const url = selected[relIdx];
-            const res = await probeUrl(url, signal);
-            totalMs += res.elapsed;
-
-            if (res.ok) {
-              okCount++;
-            } else {
-              failedItems.push({
-                index: absIdx,
-                url,
-                reason: res.error,
-                elapsed: res.elapsed,
-              });
+        for (let i = 0; i < target.length; i++) {
+          let buf = null;
+          for (let attempt = 1; attempt <= 3; attempt++) {
+            try {
+              const r = await fetch(target[i], { cache: 'no-store', signal: controller.signal });
+              if (!r.ok) throw new Error(`HTTP ${r.status}`);
+              buf = await r.arrayBuffer();
+              break;
+            } catch (err) {
+              if (err.name === 'AbortError') throw err;
+              if (attempt === 3) throw new Error(`فشل المقطع #${s + i}: ${err.message}`);
+              await new Promise((ok) => setTimeout(ok, 300 * attempt));
             }
+          }
 
-            completed++;
-            setProgress((completed / selected.length) * 100);
-            if (completed % 100 === 0 || completed === selected.length) {
-              setLog(`تم فحص ${completed} / ${selected.length} مقطع...`);
-            }
+          parts.push(buf);
+          buf = null;
+
+          const done = i + 1;
+          setProgress((done / target.length) * 100);
+          if (done % 25 === 0 || done === target.length) {
+            setStatus(`تم سحب ${done} من ${target.length} مقطع بالترتيب...`);
           }
         }
 
-        await Promise.all(Array.from({ length: Math.min(concurrency, selected.length) }, worker));
+        setStatus('جاري تغليف الملف وتجهيز التنزيل في جهازك...');
+        const ext = extSelectEl.value;
+        const mime = ext === 'mp4' ? 'video/mp4' : 'video/mp2t';
+        const blob = new Blob(parts, { type: mime });
+        parts.length = 0;
 
-        failedItems.sort((a, b) => a.index - b.index);
-        const failCount = failedItems.length;
-        const avgMs = selected.length ? Math.round(totalMs / selected.length) : 0;
+        const blobUrl = URL.createObjectURL(blob);
+        const cleanName = (fileNameEl.value.trim() || 'video_720p').replace(/[^\w\-一-龥\u0600-\u06FF]/g, '_');
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = `${cleanName}.${ext}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
 
-        renderSummary(selected.length, okCount, failCount, avgMs);
-        renderFailedList(failedItems);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
 
-        if (failCount === 0) {
-          setLog(`نجح الكل (${okCount}/${selected.length}) بدون أي فشل.`);
-        } else {
-          setLog(`اكتمل الفحص: نجح ${okCount} وفشل ${failCount} من أصل ${selected.length}.`);
-        }
+        setStatus(
+          `تم التجميع وبدأ التنزيل كملف واحد!\n` +
+          `الملف: ${cleanName}.${ext}\n` +
+          `الحجم: ${(blob.size / (1024 * 1024)).toFixed(2)} MB`
+        );
       } catch (err) {
         if (err.name === 'AbortError') {
-          setLog('تم إلغاء الفحص.');
+          setStatus('تم إيقاف العملية.');
         } else {
-          setLog(`خطأ أثناء الفحص: ${err.message}`);
+          setStatus(`تعذر الإكمال: ${err.message}`);
         }
       } finally {
-        activeAbortController = null;
-        setBusyState(false);
+        controller = null;
+        btnStart.disabled = false;
+        btnStop.disabled = true;
       }
     });
 
-    document.getElementById('btnPlayStream').addEventListener('click', () => {
-      cleanupMergedUrl();
-      const masterUrl = masterUrlEl.value.trim();
-      if (!masterUrl) return;
-
-      masterBoxEl.style.display = 'block';
-      masterBoxEl.innerHTML = `<div><b>بث HLS المباشر</b></div><div style="color:#94a3b8;margin-top:4px;">${masterUrl}</div>`;
-
-      if (hlsInstance) {
-        hlsInstance.destroy();
-        hlsInstance = null;
-      }
-
-      if (Hls.isSupported()) {
-        hlsInstance = new Hls({ enableWorker: true });
-        hlsInstance.loadSource(masterUrl);
-        hlsInstance.attachMedia(videoEl);
-        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
-          videoEl.play().catch(() => {});
-          setLog('تم تحميل قائمة HLS وبدء التشغيل.');
-        });
-        hlsInstance.on(Hls.Events.ERROR, (_, data) => {
-          if (data.fatal) {
-            setLog(`خطأ تشغيل HLS: ${data.type} - ${data.details}`);
-          }
-        });
-      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
-        videoEl.src = masterUrl;
-        videoEl.play().catch(() => {});
-        setLog('تم تمرير الرابط للمشغل الأصلي.');
-      } else {
-        setLog('المتصفح لا يدعم HLS مباشرة.');
-      }
-    });
-
-    document.getElementById('btnMergePlay').addEventListener('click', async () => {
-      const masterUrl = masterUrlEl.value.trim();
-      let m3u8Text = manifestInputEl.value.trim();
-
-      activeAbortController = new AbortController();
-      const { signal } = activeAbortController;
-      setBusyState(true);
-
-      try {
-        masterBoxEl.style.display = 'block';
-        masterBoxEl.innerHTML = `<div><b>رابط المجمع (.m3u8)</b></div><div style="color:#94a3b8;margin-top:4px;">${masterUrl}</div>`;
-
-        if (!m3u8Text) {
-          setLog('جاري جلب قائمة المقاطع من رابط المجمع...');
-          m3u8Text = await fetchPlaylistText(masterUrl, signal);
-          manifestInputEl.value = m3u8Text;
-        }
-
-        const allSegments = parseSegments(m3u8Text, masterUrl);
-        if (!allSegments.length) throw new Error('القائمة لا تحتوي على مقاطع');
-
-        const { selected: segments, start, end } = sliceSegmentsByRange(allSegments);
-        if (!segments.length) throw new Error('نطاق البداية والنهاية غير صحيح');
-
-        if (hlsInstance) {
-          hlsInstance.destroy();
-          hlsInstance = null;
-        }
-        videoEl.removeAttribute('src');
-        videoEl.load();
-
-        cleanupMergedUrl();
-        setProgress(0);
-        setLog(`جاري تحميل كامل النطاق (${segments.length} مقطع من #${start} إلى #${end})...`);
-
-        let chunks = new Array(segments.length);
-        const concurrency = Math.max(1, Math.min(6, Number.parseInt(concurrencyEl.value, 10) || 4));
-        let nextIndex = 0;
-        let completed = 0;
-
-        async function worker() {
-          while (nextIndex < segments.length) {
-            const idx = nextIndex++;
-            const res = await fetch(segments[idx], { cache: 'no-store', signal });
-            if (!res.ok) throw new Error(`فشل المقطع #${start + idx} بحالة HTTP ${res.status}`);
-            chunks[idx] = await res.arrayBuffer();
-            completed++;
-            setProgress((completed / segments.length) * 100);
-            if (completed % 50 === 0 || completed === segments.length) {
-              setLog(`تم تحميل ${completed} من ${segments.length} مقطع...`);
-            }
-          }
-        }
-
-        await Promise.all(Array.from({ length: Math.min(concurrency, segments.length) }, worker));
-
-        setLog('جاري تجميع المقاطع في ملف واحد جاهز للتحميل...');
-        const mergedBlob = new Blob(chunks, { type: 'video/mp2t' });
-        chunks.length = 0;
-        chunks = null;
-
-        mergedBlobUrl = URL.createObjectURL(mergedBlob);
-        mergedFileName = `merged_720p_${start}_to_${end}.ts`;
-        btnDownloadTs.disabled = false;
-
-        setLog(`اكتمل التجميع (${(mergedBlob.size / (1024 * 1024)).toFixed(2)} MB) للمقاطع [${start}..${end}]. اضغط "تحميل الفيديو المدمج (.ts)" لحفظه.`);
-      } catch (err) {
-        if (err.name === 'AbortError') {
-          setLog('تم إلغاء عملية التحميل والتجميع.');
-        } else {
-          setLog(`تعذر التجميع: ${err.message}`);
-        }
-      } finally {
-        activeAbortController = null;
-        setBusyState(false);
-      }
-    });
-
-    btnDownloadTs.addEventListener('click', () => {
-      if (!mergedBlobUrl) return;
-      const a = document.createElement('a');
-      a.href = mergedBlobUrl;
-      a.download = mergedFileName;
-      a.click();
-    });
-
-    masterUrlEl.addEventListener('input', updateExpiryBanner);
-    updateExpiryBanner();
+    m3u8UrlEl.addEventListener('input', updateExpiry);
+    updateExpiry();
   </script>
 </body>
 </html>
