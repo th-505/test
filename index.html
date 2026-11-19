@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>اختبار وتشغيل HLS (.m3u8 / .ts)</title>
+  <title>اختبار وتحميل HLS (.m3u8 / .ts)</title>
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
   <style>
     :root {
@@ -16,7 +16,6 @@
       --accent-hover: #553c9a;
       --ok: #10b981;
       --err: #ef4444;
-      --warn: #f59e0b;
     }
     * { box-sizing: border-box; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
     body {
@@ -48,7 +47,7 @@
       direction: ltr;
       text-align: left;
     }
-    textarea { min-height: 95px; resize: vertical; }
+    textarea { min-height: 85px; resize: vertical; }
     .range-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -80,23 +79,13 @@
       border-radius: 10px;
       border: 1px solid var(--border);
     }
-    .player-note {
-      margin-top: 10px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      background: rgba(245, 158, 11, 0.12);
-      border: 1px solid rgba(245, 158, 11, 0.35);
-      color: #fde68a;
-      font-size: 0.85rem;
-      display: none;
-    }
     .summary-bar {
       margin-top: 14px;
       background: #0b1120;
       border: 1px solid var(--border);
       border-radius: 10px;
       padding: 12px 14px;
-      display: flex;
+      display: none;
       flex-wrap: wrap;
       gap: 12px;
       justify-content: space-between;
@@ -135,7 +124,7 @@
       font-size: 0.9rem;
     }
     .failed-list {
-      max-height: 240px;
+      max-height: 220px;
       overflow-y: auto;
       display: grid;
       gap: 6px;
@@ -174,7 +163,7 @@
 <body>
   <div class="container">
     <div class="card">
-      <h1>اختبار الاستجابة وتشغيل HLS (.m3u8 / .ts)</h1>
+      <h1>اختبار الاستجابة وتحميل HLS (.m3u8 / .ts)</h1>
       <div class="meta" id="expiryInfo">جاري حساب صلاحية expires...</div>
 
       <label for="masterUrl">رابط المجمع (Master / Media .m3u8):</label>
@@ -191,25 +180,25 @@
         </div>
         <div>
           <label for="endSeg">مقطع النهاية (فارغ = حتى آخر مقطع):</label>
-          <input type="number" id="endSeg" min="0" value="5" placeholder="إلى النهاية" />
+          <input type="number" id="endSeg" min="0" value="" placeholder="إلى النهاية" />
         </div>
         <div>
-          <label for="concurrencyInput">سرعة الفحص/التحميل المتوازي:</label>
-          <input type="number" id="concurrencyInput" min="1" max="20" value="10" />
+          <label for="concurrencyInput">التوازي (1 إلى 6):</label>
+          <input type="number" id="concurrencyInput" min="1" max="6" value="4" />
         </div>
       </div>
 
       <div style="margin-top: 12px;">
-        <label for="manifestInput">محتوى قائمة المقاطع (.m3u8) — يُجلب تلقائياً من رابط المجمع أو يُلصق يدوياً:</label>
+        <label for="manifestInput">محتوى قائمة المقاطع (.m3u8) — يُجلب تلقائياً أو يُلصق يدوياً:</label>
         <textarea id="manifestInput" placeholder="#EXTM3U ..."></textarea>
       </div>
 
       <div class="row">
         <button id="btnTestAll">فحص الكل من البداية للنهاية</button>
         <button id="btnPlayStream" class="secondary">تشغيل بث HLS</button>
-        <button id="btnMergePlay">دمج وتشغيل كفيديو واحد</button>
+        <button id="btnMergePlay">تجميع كامل النطاق (.ts)</button>
         <button id="btnDownloadTs" class="secondary" disabled>تحميل الفيديو المدمج (.ts)</button>
-        <button id="btnCancel" class="danger" disabled>إلغاء العملية</button>
+        <button id="btnCancel" class="danger" disabled>إلغاء</button>
       </div>
 
       <div class="progress-wrap">
@@ -219,7 +208,7 @@
 
       <div class="master-box" id="masterBox"></div>
 
-      <div class="summary-bar" id="summaryBar" style="display:none;">
+      <div class="summary-bar" id="summaryBar">
         <div class="summary-stats" id="summaryStats"></div>
       </div>
 
@@ -231,7 +220,6 @@
 
     <div class="card">
       <video id="videoPlayer" controls playsinline></video>
-      <div class="player-note" id="playerNote"></div>
     </div>
   </div>
 
@@ -251,7 +239,6 @@
     const progressBarEl = document.getElementById('progressBar');
     const logTextEl = document.getElementById('logText');
     const videoEl = document.getElementById('videoPlayer');
-    const playerNoteEl = document.getElementById('playerNote');
     const btnDownloadTs = document.getElementById('btnDownloadTs');
     const btnCancel = document.getElementById('btnCancel');
 
@@ -259,7 +246,14 @@
     let mergedBlobUrl = null;
     let mergedFileName = 'merged_720p.ts';
     let activeAbortController = null;
-    let playingMergedBlob = false;
+
+    function cleanupMergedUrl() {
+      if (mergedBlobUrl) {
+        URL.revokeObjectURL(mergedBlobUrl);
+        mergedBlobUrl = null;
+      }
+      btnDownloadTs.disabled = true;
+    }
 
     function updateExpiryBanner() {
       try {
@@ -293,16 +287,6 @@
       progressBarEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
     }
 
-    function showPlayerNote(msg) {
-      playerNoteEl.style.display = 'block';
-      playerNoteEl.textContent = msg;
-    }
-
-    function hidePlayerNote() {
-      playerNoteEl.style.display = 'none';
-      playerNoteEl.textContent = '';
-    }
-
     function setBusyState(busy) {
       btnCancel.disabled = !busy;
       document.getElementById('btnTestAll').disabled = busy;
@@ -314,14 +298,6 @@
       if (activeAbortController) {
         activeAbortController.abort();
         activeAbortController = null;
-      }
-    });
-
-    videoEl.addEventListener('error', () => {
-      if (playingMergedBlob) {
-        showPlayerNote(
-          'تم دمج المقاطع وحفظها في الذاكرة بنجاح، لكن المتصفح لا يدعم تشغيل حاوية MPEG-TS (.ts) مباشرة داخل عنصر <video>. اضغط "تحميل الفيديو المدمج (.ts)" لتشغيله في VLC أو تحويله إلى MP4 عبر ffmpeg.'
-        );
       }
     });
 
@@ -422,7 +398,6 @@
 
     document.getElementById('btnTestAll').addEventListener('click', async () => {
       updateExpiryBanner();
-      hidePlayerNote();
       failedBoxEl.style.display = 'none';
       failedListEl.innerHTML = '';
       summaryBarEl.style.display = 'none';
@@ -463,7 +438,7 @@
           return;
         }
 
-        const concurrency = Math.max(1, Math.min(20, Number.parseInt(concurrencyEl.value, 10) || 10));
+        const concurrency = Math.max(1, Math.min(6, Number.parseInt(concurrencyEl.value, 10) || 4));
         let nextIdx = 0;
         let completed = 0;
         let okCount = 0;
@@ -493,7 +468,7 @@
 
             completed++;
             setProgress((completed / selected.length) * 100);
-            if (completed % 50 === 0 || completed === selected.length) {
+            if (completed % 100 === 0 || completed === selected.length) {
               setLog(`تم فحص ${completed} / ${selected.length} مقطع...`);
             }
           }
@@ -526,8 +501,7 @@
     });
 
     document.getElementById('btnPlayStream').addEventListener('click', () => {
-      hidePlayerNote();
-      playingMergedBlob = false;
+      cleanupMergedUrl();
       const masterUrl = masterUrlEl.value.trim();
       if (!masterUrl) return;
 
@@ -537,10 +511,6 @@
       if (hlsInstance) {
         hlsInstance.destroy();
         hlsInstance = null;
-      }
-      if (mergedBlobUrl) {
-        URL.revokeObjectURL(mergedBlobUrl);
-        mergedBlobUrl = null;
       }
 
       if (Hls.isSupported()) {
@@ -566,7 +536,6 @@
     });
 
     document.getElementById('btnMergePlay').addEventListener('click', async () => {
-      hidePlayerNote();
       const masterUrl = masterUrlEl.value.trim();
       let m3u8Text = manifestInputEl.value.trim();
 
@@ -594,13 +563,15 @@
           hlsInstance.destroy();
           hlsInstance = null;
         }
+        videoEl.removeAttribute('src');
+        videoEl.load();
 
-        btnDownloadTs.disabled = true;
+        cleanupMergedUrl();
         setProgress(0);
-        setLog(`جاري تحميل ${segments.length} مقطع (من #${start} إلى #${end}) ودمجها كفيديو واحد...`);
+        setLog(`جاري تحميل كامل النطاق (${segments.length} مقطع من #${start} إلى #${end})...`);
 
-        const chunks = new Array(segments.length);
-        const concurrency = Math.max(1, Math.min(20, Number.parseInt(concurrencyEl.value, 10) || 10));
+        let chunks = new Array(segments.length);
+        const concurrency = Math.max(1, Math.min(6, Number.parseInt(concurrencyEl.value, 10) || 4));
         let nextIndex = 0;
         let completed = 0;
 
@@ -609,11 +580,10 @@
             const idx = nextIndex++;
             const res = await fetch(segments[idx], { cache: 'no-store', signal });
             if (!res.ok) throw new Error(`فشل المقطع #${start + idx} بحالة HTTP ${res.status}`);
-            const buf = await res.arrayBuffer();
-            chunks[idx] = buf;
+            chunks[idx] = await res.arrayBuffer();
             completed++;
             setProgress((completed / segments.length) * 100);
-            if (completed % 25 === 0 || completed === segments.length) {
+            if (completed % 50 === 0 || completed === segments.length) {
               setLog(`تم تحميل ${completed} من ${segments.length} مقطع...`);
             }
           }
@@ -621,21 +591,21 @@
 
         await Promise.all(Array.from({ length: Math.min(concurrency, segments.length) }, worker));
 
+        setLog('جاري تجميع المقاطع في ملف واحد جاهز للتحميل...');
         const mergedBlob = new Blob(chunks, { type: 'video/mp2t' });
-        if (mergedBlobUrl) URL.revokeObjectURL(mergedBlobUrl);
+        chunks.length = 0;
+        chunks = null;
+
         mergedBlobUrl = URL.createObjectURL(mergedBlob);
         mergedFileName = `merged_720p_${start}_to_${end}.ts`;
-
-        playingMergedBlob = true;
-        videoEl.src = mergedBlobUrl;
-        await videoEl.play().catch(() => {});
         btnDownloadTs.disabled = false;
-        setLog(`تم الدمج بنجاح (${(mergedBlob.size / (1024 * 1024)).toFixed(2)} MB) للمقاطع [${start}..${end}].`);
+
+        setLog(`اكتمل التجميع (${(mergedBlob.size / (1024 * 1024)).toFixed(2)} MB) للمقاطع [${start}..${end}]. اضغط "تحميل الفيديو المدمج (.ts)" لحفظه.`);
       } catch (err) {
         if (err.name === 'AbortError') {
-          setLog('تم إلغاء عملية التحميل والدمج.');
+          setLog('تم إلغاء عملية التحميل والتجميع.');
         } else {
-          setLog(`تعذر الدمج: ${err.message}`);
+          setLog(`تعذر التجميع: ${err.message}`);
         }
       } finally {
         activeAbortController = null;
