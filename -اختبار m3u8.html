@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>اختبار وتشغيل HLS (.m3u8 / .ts)</title>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --accent: #6b46c1;
+      --accent-hover: #553c9a;
+      --ok: #10b981;
+      --err: #ef4444;
+      --warn: #f59e0b;
+    }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif; }
+    body {
+      margin: 0;
+      padding: 20px;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container { max-width: 980px; margin: 0 auto; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    h1 { margin: 0 0 8px; font-size: 1.35rem; }
+    .meta { color: var(--muted); font-size: 0.9rem; margin-bottom: 12px; }
+    label { display: block; margin-bottom: 6px; font-weight: 600; font-size: 0.92rem; }
+    input[type="text"], input[type="number"], textarea {
+      width: 100%;
+      background: #0b1120;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.88rem;
+      direction: ltr;
+      text-align: left;
+    }
+    textarea { min-height: 95px; resize: vertical; }
+    .range-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover { background: var(--accent-hover); }
+    button.secondary { background: #334155; }
+    button.secondary:hover { background: #475569; }
+    button.danger { background: #991b1b; }
+    button.danger:hover { background: #b91c1c; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    video {
+      width: 100%;
+      max-height: 480px;
+      background: #000;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .player-note {
+      margin-top: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      color: #fde68a;
+      font-size: 0.85rem;
+      display: none;
+    }
+    .summary-bar {
+      margin-top: 14px;
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.88rem;
+    }
+    .summary-stats { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .pill { padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 0.8rem; }
+    .p-ok { background: rgba(16, 185, 129, 0.18); color: var(--ok); }
+    .p-err { background: rgba(239, 68, 68, 0.18); color: var(--err); }
+    .p-info { background: rgba(148, 163, 184, 0.18); color: #e2e8f0; }
+    .master-box {
+      margin-top: 10px;
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.84rem;
+      direction: ltr;
+      text-align: left;
+      word-break: break-all;
+      display: none;
+    }
+    .failed-box {
+      margin-top: 12px;
+      background: rgba(239, 68, 68, 0.06);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      border-radius: 10px;
+      padding: 12px;
+      display: none;
+    }
+    .failed-title {
+      font-weight: 700;
+      color: var(--err);
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+    .failed-list {
+      max-height: 240px;
+      overflow-y: auto;
+      display: grid;
+      gap: 6px;
+      direction: ltr;
+      text-align: left;
+      font-size: 0.82rem;
+    }
+    .failed-item {
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      word-break: break-all;
+    }
+    .progress-wrap {
+      margin-top: 12px;
+      background: #0b1120;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      height: 12px;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--ok);
+      transition: width 0.15s;
+    }
+    .log {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>اختبار الاستجابة وتشغيل HLS (.m3u8 / .ts)</h1>
+      <div class="meta" id="expiryInfo">جاري حساب صلاحية expires...</div>
+
+      <label for="masterUrl">رابط المجمع (Master / Media .m3u8):</label>
+      <input
+        type="text"
+        id="masterUrl"
+        value="https://s9.ukrcdn.xyz/hls/a4cb38d5-1b6a-42fa-a62d-635d4d838140/720p/720p.m3u8?token=504320e7fb67e95795befd6e47fa2e02ba908b42792cf6e75510ecee87c66b07&expires=1795096923"
+      />
+
+      <div class="range-grid">
+        <div>
+          <label for="startSeg">مقطع البداية (Start Index):</label>
+          <input type="number" id="startSeg" min="0" value="0" />
+        </div>
+        <div>
+          <label for="endSeg">مقطع النهاية (فارغ = حتى آخر مقطع):</label>
+          <input type="number" id="endSeg" min="0" value="5" placeholder="إلى النهاية" />
+        </div>
+        <div>
+          <label for="concurrencyInput">سرعة الفحص/التحميل المتوازي:</label>
+          <input type="number" id="concurrencyInput" min="1" max="20" value="10" />
+        </div>
+      </div>
+
+      <div style="margin-top: 12px;">
+        <label for="manifestInput">محتوى قائمة المقاطع (.m3u8) — يُجلب تلقائياً من رابط المجمع أو يُلصق يدوياً:</label>
+        <textarea id="manifestInput" placeholder="#EXTM3U ..."></textarea>
+      </div>
+
+      <div class="row">
+        <button id="btnTestAll">فحص الكل من البداية للنهاية</button>
+        <button id="btnPlayStream" class="secondary">تشغيل بث HLS</button>
+        <button id="btnMergePlay">دمج وتشغيل كفيديو واحد</button>
+        <button id="btnDownloadTs" class="secondary" disabled>تحميل الفيديو المدمج (.ts)</button>
+        <button id="btnCancel" class="danger" disabled>إلغاء العملية</button>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="log" id="logText">جاهز للاختبار.</div>
+
+      <div class="master-box" id="masterBox"></div>
+
+      <div class="summary-bar" id="summaryBar" style="display:none;">
+        <div class="summary-stats" id="summaryStats"></div>
+      </div>
+
+      <div class="failed-box" id="failedBox">
+        <div class="failed-title" id="failedTitle">المقاطع الفاشلة:</div>
+        <div class="failed-list" id="failedList"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <video id="videoPlayer" controls playsinline></video>
+      <div class="player-note" id="playerNote"></div>
+    </div>
+  </div>
+
+  <script>
+    const masterUrlEl = document.getElementById('masterUrl');
+    const startSegEl = document.getElementById('startSeg');
+    const endSegEl = document.getElementById('endSeg');
+    const concurrencyEl = document.getElementById('concurrencyInput');
+    const manifestInputEl = document.getElementById('manifestInput');
+    const expiryInfoEl = document.getElementById('expiryInfo');
+    const masterBoxEl = document.getElementById('masterBox');
+    const summaryBarEl = document.getElementById('summaryBar');
+    const summaryStatsEl = document.getElementById('summaryStats');
+    const failedBoxEl = document.getElementById('failedBox');
+    const failedTitleEl = document.getElementById('failedTitle');
+    const failedListEl = document.getElementById('failedList');
+    const progressBarEl = document.getElementById('progressBar');
+    const logTextEl = document.getElementById('logText');
+    const videoEl = document.getElementById('videoPlayer');
+    const playerNoteEl = document.getElementById('playerNote');
+    const btnDownloadTs = document.getElementById('btnDownloadTs');
+    const btnCancel = document.getElementById('btnCancel');
+
+    let hlsInstance = null;
+    let mergedBlobUrl = null;
+    let mergedFileName = 'merged_720p.ts';
+    let activeAbortController = null;
+    let playingMergedBlob = false;
+
+    function updateExpiryBanner() {
+      try {
+        const u = new URL(masterUrlEl.value.trim());
+        const exp = Number(u.searchParams.get('expires'));
+        if (!exp) {
+          expiryInfoEl.textContent = 'لم يتم العثور على معامل expires في رابط المجمع.';
+          return;
+        }
+        const expDate = new Date(exp * 1000);
+        const nowSec = Math.floor(Date.now() / 1000);
+        const diffSec = exp - nowSec;
+        const riyadhStr = expDate.toLocaleString('ar-SA', { timeZone: 'Asia/Riyadh' });
+
+        if (diffSec > 0) {
+          const mins = Math.floor(diffSec / 60);
+          expiryInfoEl.innerHTML = `انتهاء الصلاحية (الرياض): <b>${riyadhStr}</b> — متبقي تقريباً <b>${mins}</b> دقيقة.`;
+        } else {
+          expiryInfoEl.innerHTML = `<span style="color:#ef4444">منتهي الصلاحية منذ:</span> <b>${riyadhStr}</b>`;
+        }
+      } catch {
+        expiryInfoEl.textContent = 'رابط المجمع غير صالح.';
+      }
+    }
+
+    function setLog(msg) {
+      logTextEl.textContent = msg;
+    }
+
+    function setProgress(pct) {
+      progressBarEl.style.width = `${Math.max(0, Math.min(100, pct))}%`;
+    }
+
+    function showPlayerNote(msg) {
+      playerNoteEl.style.display = 'block';
+      playerNoteEl.textContent = msg;
+    }
+
+    function hidePlayerNote() {
+      playerNoteEl.style.display = 'none';
+      playerNoteEl.textContent = '';
+    }
+
+    function setBusyState(busy) {
+      btnCancel.disabled = !busy;
+      document.getElementById('btnTestAll').disabled = busy;
+      document.getElementById('btnMergePlay').disabled = busy;
+      document.getElementById('btnPlayStream').disabled = busy;
+    }
+
+    btnCancel.addEventListener('click', () => {
+      if (activeAbortController) {
+        activeAbortController.abort();
+        activeAbortController = null;
+      }
+    });
+
+    videoEl.addEventListener('error', () => {
+      if (playingMergedBlob) {
+        showPlayerNote(
+          'تم دمج المقاطع وحفظها في الذاكرة بنجاح، لكن المتصفح لا يدعم تشغيل حاوية MPEG-TS (.ts) مباشرة داخل عنصر <video>. اضغط "تحميل الفيديو المدمج (.ts)" لتشغيله في VLC أو تحويله إلى MP4 عبر ffmpeg.'
+        );
+      }
+    });
+
+    function parseSegments(m3u8Text, baseUrl) {
+      const lines = m3u8Text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+      const segs = [];
+      for (const line of lines) {
+        if (!line.startsWith('#')) {
+          segs.push(new URL(line, baseUrl).toString());
+        }
+      }
+      return segs;
+    }
+
+    function sliceSegmentsByRange(allSegments) {
+      const rawStart = Number.parseInt(startSegEl.value, 10);
+      const start = Number.isNaN(rawStart) || rawStart < 0 ? 0 : rawStart;
+
+      const rawEndStr = endSegEl.value.trim();
+      let end = allSegments.length - 1;
+      if (rawEndStr !== '') {
+        const parsedEnd = Number.parseInt(rawEndStr, 10);
+        if (!Number.isNaN(parsedEnd)) {
+          end = Math.min(parsedEnd, allSegments.length - 1);
+        }
+      }
+
+      if (start > end || allSegments.length === 0) {
+        return { selected: [], start, end };
+      }
+
+      return {
+        selected: allSegments.slice(start, end + 1),
+        start,
+        end,
+      };
+    }
+
+    async function fetchPlaylistText(url, signal) {
+      const res = await fetch(url, { cache: 'no-store', signal });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = await res.text();
+      if (!text.includes('#EXTM3U')) throw new Error('المحتوى ليس قائمة M3U8 صالحة');
+      return text;
+    }
+
+    async function probeUrl(url, signal) {
+      const t0 = performance.now();
+      try {
+        const res = await fetch(url, { method: 'GET', cache: 'no-store', signal });
+        const elapsed = Math.round(performance.now() - t0);
+        return {
+          ok: res.ok,
+          status: res.status,
+          elapsed,
+          error: res.ok ? '' : `HTTP ${res.status}`,
+        };
+      } catch (err) {
+        if (err.name === 'AbortError') throw err;
+        const elapsed = Math.round(performance.now() - t0);
+        return {
+          ok: false,
+          status: 0,
+          elapsed,
+          error: err.message || 'Network/CORS error',
+        };
+      }
+    }
+
+    function renderSummary(total, okCount, failCount, avgMs) {
+      summaryBarEl.style.display = 'flex';
+      summaryStatsEl.innerHTML = `
+        <span class="pill p-info">المفحوص: ${total}</span>
+        <span class="pill p-ok">ناجح: ${okCount}</span>
+        <span class="pill p-err">فشل: ${failCount}</span>
+        <span class="pill p-info">متوسط الاستجابة: ${avgMs} ms</span>
+      `;
+    }
+
+    function renderFailedList(failedItems) {
+      failedListEl.innerHTML = '';
+      if (!failedItems.length) {
+        failedBoxEl.style.display = 'none';
+        return;
+      }
+      failedBoxEl.style.display = 'block';
+      failedTitleEl.textContent = `قائمة المقاطع الفاشلة (${failedItems.length}):`;
+      for (const item of failedItems) {
+        const div = document.createElement('div');
+        div.className = 'failed-item';
+        div.innerHTML = `
+          <div><b style="color:#ef4444;">مقطع #${item.index}</b> — <span>${item.reason}</span> (${item.elapsed}ms)</div>
+          <div style="color:#94a3b8;">${item.url}</div>
+        `;
+        failedListEl.appendChild(div);
+      }
+    }
+
+    document.getElementById('btnTestAll').addEventListener('click', async () => {
+      updateExpiryBanner();
+      hidePlayerNote();
+      failedBoxEl.style.display = 'none';
+      failedListEl.innerHTML = '';
+      summaryBarEl.style.display = 'none';
+      setProgress(0);
+
+      const masterUrl = masterUrlEl.value.trim();
+      if (!masterUrl) return;
+
+      activeAbortController = new AbortController();
+      const { signal } = activeAbortController;
+      setBusyState(true);
+
+      try {
+        masterBoxEl.style.display = 'block';
+        setLog('جاري فحص رابط المجمع...');
+        const masterProbe = await probeUrl(masterUrl, signal);
+        masterBoxEl.innerHTML = `
+          <div><b>رابط المجمع (.m3u8)</b> — <span class="pill ${masterProbe.ok ? 'p-ok' : 'p-err'}">${masterProbe.ok ? `OK ${masterProbe.status}` : `FAIL (${masterProbe.error})`} (${masterProbe.elapsed}ms)</span></div>
+          <div style="color:#94a3b8;margin-top:4px;">${masterUrl}</div>
+        `;
+
+        let m3u8Text = manifestInputEl.value.trim();
+        if (!m3u8Text && masterProbe.ok) {
+          setLog('جاري جلب قائمة المقاطع...');
+          m3u8Text = await fetchPlaylistText(masterUrl, signal);
+          manifestInputEl.value = m3u8Text;
+        }
+
+        if (!m3u8Text) {
+          setLog('لا توجد قائمة مقاطع متاحة للفحص.');
+          return;
+        }
+
+        const allSegs = parseSegments(m3u8Text, masterUrl);
+        const { selected, start, end } = sliceSegmentsByRange(allSegs);
+        if (!selected.length) {
+          setLog('نطاق المقاطع المحدد غير صالح.');
+          return;
+        }
+
+        const concurrency = Math.max(1, Math.min(20, Number.parseInt(concurrencyEl.value, 10) || 10));
+        let nextIdx = 0;
+        let completed = 0;
+        let okCount = 0;
+        let totalMs = 0;
+        const failedItems = [];
+
+        setLog(`جاري فحص ${selected.length} مقطع من #${start} إلى #${end}...`);
+
+        async function worker() {
+          while (nextIdx < selected.length) {
+            const relIdx = nextIdx++;
+            const absIdx = start + relIdx;
+            const url = selected[relIdx];
+            const res = await probeUrl(url, signal);
+            totalMs += res.elapsed;
+
+            if (res.ok) {
+              okCount++;
+            } else {
+              failedItems.push({
+                index: absIdx,
+                url,
+                reason: res.error,
+                elapsed: res.elapsed,
+              });
+            }
+
+            completed++;
+            setProgress((completed / selected.length) * 100);
+            if (completed % 50 === 0 || completed === selected.length) {
+              setLog(`تم فحص ${completed} / ${selected.length} مقطع...`);
+            }
+          }
+        }
+
+        await Promise.all(Array.from({ length: Math.min(concurrency, selected.length) }, worker));
+
+        failedItems.sort((a, b) => a.index - b.index);
+        const failCount = failedItems.length;
+        const avgMs = selected.length ? Math.round(totalMs / selected.length) : 0;
+
+        renderSummary(selected.length, okCount, failCount, avgMs);
+        renderFailedList(failedItems);
+
+        if (failCount === 0) {
+          setLog(`نجح الكل (${okCount}/${selected.length}) بدون أي فشل.`);
+        } else {
+          setLog(`اكتمل الفحص: نجح ${okCount} وفشل ${failCount} من أصل ${selected.length}.`);
+        }
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          setLog('تم إلغاء الفحص.');
+        } else {
+          setLog(`خطأ أثناء الفحص: ${err.message}`);
+        }
+      } finally {
+        activeAbortController = null;
+        setBusyState(false);
+      }
+    });
+
+    document.getElementById('btnPlayStream').addEventListener('click', () => {
+      hidePlayerNote();
+      playingMergedBlob = false;
+      const masterUrl = masterUrlEl.value.trim();
+      if (!masterUrl) return;
+
+      masterBoxEl.style.display = 'block';
+      masterBoxEl.innerHTML = `<div><b>بث HLS المباشر</b></div><div style="color:#94a3b8;margin-top:4px;">${masterUrl}</div>`;
+
+      if (hlsInstance) {
+        hlsInstance.destroy();
+        hlsInstance = null;
+      }
+      if (mergedBlobUrl) {
+        URL.revokeObjectURL(mergedBlobUrl);
+        mergedBlobUrl = null;
+      }
+
+      if (Hls.isSupported()) {
+        hlsInstance = new Hls({ enableWorker: true });
+        hlsInstance.loadSource(masterUrl);
+        hlsInstance.attachMedia(videoEl);
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, () => {
+          videoEl.play().catch(() => {});
+          setLog('تم تحميل قائمة HLS وبدء التشغيل.');
+        });
+        hlsInstance.on(Hls.Events.ERROR, (_, data) => {
+          if (data.fatal) {
+            setLog(`خطأ تشغيل HLS: ${data.type} - ${data.details}`);
+          }
+        });
+      } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
+        videoEl.src = masterUrl;
+        videoEl.play().catch(() => {});
+        setLog('تم تمرير الرابط للمشغل الأصلي.');
+      } else {
+        setLog('المتصفح لا يدعم HLS مباشرة.');
+      }
+    });
+
+    document.getElementById('btnMergePlay').addEventListener('click', async () => {
+      hidePlayerNote();
+      const masterUrl = masterUrlEl.value.trim();
+      let m3u8Text = manifestInputEl.value.trim();
+
+      activeAbortController = new AbortController();
+      const { signal } = activeAbortController;
+      setBusyState(true);
+
+      try {
+        masterBoxEl.style.display = 'block';
+        masterBoxEl.innerHTML = `<div><b>رابط المجمع (.m3u8)</b></div><div style="color:#94a3b8;margin-top:4px;">${masterUrl}</div>`;
+
+        if (!m3u8Text) {
+          setLog('جاري جلب قائمة المقاطع من رابط المجمع...');
+          m3u8Text = await fetchPlaylistText(masterUrl, signal);
+          manifestInputEl.value = m3u8Text;
+        }
+
+        const allSegments = parseSegments(m3u8Text, masterUrl);
+        if (!allSegments.length) throw new Error('القائمة لا تحتوي على مقاطع');
+
+        const { selected: segments, start, end } = sliceSegmentsByRange(allSegments);
+        if (!segments.length) throw new Error('نطاق البداية والنهاية غير صحيح');
+
+        if (hlsInstance) {
+          hlsInstance.destroy();
+          hlsInstance = null;
+        }
+
+        btnDownloadTs.disabled = true;
+        setProgress(0);
+        setLog(`جاري تحميل ${segments.length} مقطع (من #${start} إلى #${end}) ودمجها كفيديو واحد...`);
+
+        const chunks = new Array(segments.length);
+        const concurrency = Math.max(1, Math.min(20, Number.parseInt(concurrencyEl.value, 10) || 10));
+        let nextIndex = 0;
+        let completed = 0;
+
+        async function worker() {
+          while (nextIndex < segments.length) {
+            const idx = nextIndex++;
+            const res = await fetch(segments[idx], { cache: 'no-store', signal });
+            if (!res.ok) throw new Error(`فشل المقطع #${start + idx} بحالة HTTP ${res.status}`);
+            const buf = await res.arrayBuffer();
+            chunks[idx] = buf;
+            completed++;
+            setProgress((completed / segments.length) * 100);
+            if (completed % 25 === 0 || completed === segments.length) {
+              setLog(`تم تحميل ${completed} من ${segments.length} مقطع...`);
+            }
+          }
+        }
+
+        await Promise.all(Array.from({ length: Math.min(concurrency, segments.length) }, worker));
+
+        const mergedBlob = new Blob(chunks, { type: 'video/mp2t' });
+        if (mergedBlobUrl) URL.revokeObjectURL(mergedBlobUrl);
+        mergedBlobUrl = URL.createObjectURL(mergedBlob);
+        mergedFileName = `merged_720p_${start}_to_${end}.ts`;
+
+        playingMergedBlob = true;
+        videoEl.src = mergedBlobUrl;
+        await videoEl.play().catch(() => {});
+        btnDownloadTs.disabled = false;
+        setLog(`تم الدمج بنجاح (${(mergedBlob.size / (1024 * 1024)).toFixed(2)} MB) للمقاطع [${start}..${end}].`);
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          setLog('تم إلغاء عملية التحميل والدمج.');
+        } else {
+          setLog(`تعذر الدمج: ${err.message}`);
+        }
+      } finally {
+        activeAbortController = null;
+        setBusyState(false);
+      }
+    });
+
+    btnDownloadTs.addEventListener('click', () => {
+      if (!mergedBlobUrl) return;
+      const a = document.createElement('a');
+      a.href = mergedBlobUrl;
+      a.download = mergedFileName;
+      a.click();
+    });
+
+    masterUrlEl.addEventListener('input', updateExpiryBanner);
+    updateExpiryBanner();
+  </script>
+</body>
+</html>
